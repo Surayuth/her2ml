@@ -1,1 +1,3 @@
-Data_Chula/*
+Data_Chula/
+.venv/
+__pycache__/
