@@ -6,7 +6,7 @@ import polars as pl
 from glob import glob
 from pathlib import Path
 from skimage.measure import euler_number, label
-from utils.prep import read_image, mod_parallel
+from utils.prep import read_image, mod_parallel, prep_case
 
 def extract_mask(img):
     lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
@@ -92,6 +92,7 @@ if __name__ == "__main__":
         ],
         orient="row"
     )
-    dst_file = Path(args.dst) / f"linefeat|scale_{scale}|minhole_{min_hole}|maxhole_{max_hole}|maxres_{max_res}"
+    df = prep_case(df)
+    dst_file = Path(args.dst) / f"linefeat|scale_{scale}|minhole_{min_hole}|maxhole_{max_hole}|maxres_{max_res}.csv"
     df.write_csv(dst_file)
     
