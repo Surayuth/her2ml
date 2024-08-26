@@ -36,7 +36,7 @@ def extract_line(cont_mask, min_hole, max_hole, max_res):
     cs = np.arange(10, 101, 1)
     holes = np.zeros(len(cs))
     for i, c in enumerate(cs):
-        prep_mask = np.round(cont_mask / cont_mask.max() * 255).astype(np.uint8)
+        prep_mask = np.round(cont_mask / (cont_mask.max() * 255 + 1e-8)).astype(np.uint8)
         holes[i] = count_hole(prep_mask)
 
     cond = (holes > min_hole) & (holes < max_hole)
