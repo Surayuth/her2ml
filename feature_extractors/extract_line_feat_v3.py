@@ -34,8 +34,8 @@ def count_hole(mask, min_area=100):
             count += 1
     return count
 
-def count_cell(h_mask, min_area1=100, min_area2=200):
-    prep_h_mask = h_mask > 0.05
+def count_cell(h_mask, min_cont=0.05, min_area1=100, min_area2=200):
+    prep_h_mask = h_mask > min_cont
     min_areas = [min_area1, min_area2]
     h, w = prep_h_mask.shape
     analysis = cv2.connectedComponentsWithStats((prep_h_mask * 255).astype(np.uint8), 
@@ -91,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument("--dst", default="./extracted_features", type=str, help="dst to store features")
     parser.add_argument("--scale", default=0.5, type=float, help="scaling image")
     parser.add_argument("--min_hole", default=10, type=int, help="min number of holes")
+    parser.add_argument("--min_cont", default=0.05, type=float, help="min contrast for DAB")
     parser.add_argument("--min_cell_area1", default=100, type=int, help="min cell area 1")
     parser.add_argument("--min_cell_area2", default=200, type=int, help="min cell area 2")
 
@@ -98,6 +99,7 @@ if __name__ == "__main__":
 
     scale = args.scale
     min_hole = args.min_hole
+    min_cont = args.min_cont
     min_cell_area1 = args.min_cell_area1
     min_cell_area2 = args.min_cell_area2
 
@@ -108,18 +110,20 @@ if __name__ == "__main__":
         inputs=paths,
         scale=scale,
         min_hole=min_hole,
+        min_cont=min_cont,
         min_cell_area1=min_cell_area1,
         min_cell_area2=min_cell_area2
     )
     df = pl.DataFrame(
         data, schema=[
             "path", "case", "n", "h_max", "h", "w", 
+            f"min_cont_{min_cont}",
             f"n_cell_{min_cell_area1}", f"n_cell_{min_cell_area2}"
         ], orient="row"
     )
     df = prep_case(df)
     dst_file = (
         Path(args.dst)
-        / f"linefeat_v3|scale_{scale}|minhole_{min_hole}.csv"
+        / f"linefeat_v3|scale_{scale}|minhole_{min_hole}|n_cell_{min_cell_area1}|n_cell_{min_cell_area2}|min_cont_{min_cont}.csv"
     )
     df.write_csv(dst_file)
