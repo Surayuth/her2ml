@@ -6,7 +6,7 @@ import polars as pl
 from glob import glob
 from pathlib import Path
 from skimage.measure import euler_number, label
-from utils.prep import read_image, mod_parallel, prep_case
+from utils.prep import read_image, mod_parallel, prep_case, NumpyMacenkoNormalizer
 
 
 def extract_mask(img):
@@ -34,8 +34,13 @@ def count_hole(mask, min_area=100):
             count += 1
     return count
 
-def count_cell(h_mask, min_cont=0.05, min_area1=100, min_area2=200):
-    prep_h_mask = h_mask > min_cont
+def count_cell(h_mask, min_area1=100, min_area2=200):
+    """
+    min_area = min area to count as cell. We use 2 values to get the range of number of cells
+    min_area1: min area of cell 1
+    min_area2: min area of cell 2
+    """
+    prep_h_mask = h_mask > 0.05
     min_areas = [min_area1, min_area2]
     h, w = prep_h_mask.shape
     analysis = cv2.connectedComponentsWithStats((prep_h_mask * 255).astype(np.uint8), 
@@ -51,14 +56,14 @@ def count_cell(h_mask, min_cont=0.05, min_area1=100, min_area2=200):
                 h_counts[j] += 1
     return h_counts
 
-def extract_line(cont_mask, min_hole):
+def extract_line(cont_mask, min_cont, min_hole):
     cs = np.arange(10, 255)
     holes = np.zeros(len(cs))
     #prep_mask = np.round(cont_mask / (cont_mask.max() + 1e-8) * 255).astype(np.uint8)
     h, w = cont_mask.shape
 
     holes = []
-    for i in np.arange(0.01, 1, .005):
+    for i in np.arange(min_cont, 1, .005):
         holes.append(count_hole(cont_mask > i))
 
     holes = np.array(holes)
@@ -70,11 +75,11 @@ def extract_line(cont_mask, min_hole):
         return 0, 0, h, w
 
 
-def extract_feat(path, scale, min_hole, min_cell_area1, min_cell_area2):
+def extract_feat(path, scale, min_cont, min_hole, min_cell_area1, min_cell_area2):
     img = read_image(path, scale)
     cont_mask, h_cont_mask = extract_mask(img)
     n_cell1, n_cell2 = count_cell(h_cont_mask, min_cell_area1, min_cell_area2)
-    n, h_max, h, w = extract_line(cont_mask, min_hole)
+    n, h_max, h, w = extract_line(cont_mask, min_cont, min_hole)
     case_name = Path(path).parent.name
     return path, case_name, n, h_max, h, w, n_cell1, n_cell2
 
@@ -91,9 +96,9 @@ if __name__ == "__main__":
     parser.add_argument("--dst", default="./extracted_features", type=str, help="dst to store features")
     parser.add_argument("--scale", default=0.5, type=float, help="scaling image")
     parser.add_argument("--min_hole", default=10, type=int, help="min number of holes")
-    parser.add_argument("--min_cont", default=0.05, type=float, help="min contrast for DAB")
-    parser.add_argument("--min_cell_area1", default=100, type=int, help="min cell area 1")
-    parser.add_argument("--min_cell_area2", default=200, type=int, help="min cell area 2")
+    parser.add_argument("--min_cont", default=0.1, type=float, help="min contrast for DAB")
+    parser.add_argument("--min_cell_area1", default=10, type=int, help="min cell area 1")
+    parser.add_argument("--min_cell_area2", default=30, type=int, help="min cell area 2")
 
     args = parser.parse_args()
 
@@ -117,7 +122,6 @@ if __name__ == "__main__":
     df = pl.DataFrame(
         data, schema=[
             "path", "case", "n", "h_max", "h", "w", 
-            f"min_cont_{min_cont}",
             f"n_cell_{min_cell_area1}", f"n_cell_{min_cell_area2}"
         ], orient="row"
     )
