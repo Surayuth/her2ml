@@ -19,7 +19,7 @@ def extract_mask(img):
     h_cont_mask = cont_mask * (~rb_mask)
     return dab_cont_mask, h_cont_mask
 
-def count_hole(mask, min_area=100):
+def count_hole(mask, min_area_hole=100):
     h, w = mask.shape
     analysis = cv2.connectedComponentsWithStats(((~mask) * 255).astype(np.uint8), 
                                                 4, 
@@ -30,7 +30,7 @@ def count_hole(mask, min_area=100):
     count = 0
     for i in range(1, totalLabels): 
         area = values[i, cv2.CC_STAT_AREA]   
-        if (area > min_area) and (area < h * w / 100): 
+        if (area > min_area_hole) and (area < h * w / 100): 
             count += 1
     return count
 
@@ -56,7 +56,7 @@ def count_cell(h_mask, min_area1=100, min_area2=200):
                 h_counts[j] += 1
     return h_counts
 
-def extract_line(cont_mask, min_cont, min_hole):
+def extract_line(cont_mask, min_cont, min_hole, min_area_hole):
     cs = np.arange(10, 255)
     holes = np.zeros(len(cs))
     #prep_mask = np.round(cont_mask / (cont_mask.max() + 1e-8) * 255).astype(np.uint8)
@@ -64,7 +64,7 @@ def extract_line(cont_mask, min_cont, min_hole):
 
     holes = []
     for i in np.arange(min_cont, 1, .005):
-        holes.append(count_hole(cont_mask > i))
+        holes.append(count_hole(cont_mask > i, min_area_hole))
 
     holes = np.array(holes)
     holes = holes[holes > min_hole]
@@ -75,11 +75,11 @@ def extract_line(cont_mask, min_cont, min_hole):
         return 0, 0, h, w
 
 
-def extract_feat(path, scale, min_cont, min_hole, min_cell_area1, min_cell_area2):
+def extract_feat(path, scale, min_cont, min_hole, min_area_hole, min_cell_area1, min_cell_area2):
     img = read_image(path, scale)
     cont_mask, h_cont_mask = extract_mask(img)
     n_cell1, n_cell2 = count_cell(h_cont_mask, min_cell_area1, min_cell_area2)
-    n, h_max, h, w = extract_line(cont_mask, min_cont, min_hole)
+    n, h_max, h, w = extract_line(cont_mask, min_cont, min_hole, min_area_hole)
     case_name = Path(path).parent.name
     return path, case_name, n, h_max, h, w, n_cell1, n_cell2
 
@@ -97,6 +97,7 @@ if __name__ == "__main__":
     parser.add_argument("--scale", default=0.5, type=float, help="scaling image")
     parser.add_argument("--min_hole", default=10, type=int, help="min number of holes")
     parser.add_argument("--min_cont", default=0.1, type=float, help="min contrast for DAB")
+    parser.add_argument("--min_area_hole", default=25, type=int, help="min area hole")
     parser.add_argument("--min_cell_area1", default=10, type=int, help="min cell area 1")
     parser.add_argument("--min_cell_area2", default=30, type=int, help="min cell area 2")
 
@@ -107,6 +108,7 @@ if __name__ == "__main__":
     min_cont = args.min_cont
     min_cell_area1 = args.min_cell_area1
     min_cell_area2 = args.min_cell_area2
+    min_area_hole = args.min_area_hole
 
     paths = glob(f"{args.src}/*/*")
     data = mod_parallel(
@@ -117,7 +119,8 @@ if __name__ == "__main__":
         min_hole=min_hole,
         min_cont=min_cont,
         min_cell_area1=min_cell_area1,
-        min_cell_area2=min_cell_area2
+        min_cell_area2=min_cell_area2,
+        min_area_hole=min_area_hole
     )
     df = pl.DataFrame(
         data, schema=[
@@ -128,6 +131,6 @@ if __name__ == "__main__":
     df = prep_case(df)
     dst_file = (
         Path(args.dst)
-        / f"linefeat_v3|scale_{scale}|minhole_{min_hole}|n_cell_{min_cell_area1}|n_cell_{min_cell_area2}|min_cont_{min_cont}.csv"
+        / f"linefeat_v3|scale_{scale}|minhole_{min_hole}|n_cell_{min_cell_area1}|n_cell_{min_cell_area2}|min_cont_{min_cont}|min_area_hole_{min_area_hole}.csv"
     )
     df.write_csv(dst_file)
