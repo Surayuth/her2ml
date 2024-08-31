@@ -1,4 +1,5 @@
 import argparse
+import cv2
 from glob import glob
 from utils.prep import *
 from pathlib import Path
@@ -19,8 +20,10 @@ def extract_feat(path, level):
             (level - 1)
         ).astype(np.uint8)
 
+
+    _,th_gray = cv2.threshold(gray,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
     # color feat
-    color_feat = gray.mean()
+    color_feat = (th_gray * gray).mean()
 
     # lbp
     lbp = local_binary_pattern(q_gray, P=8, R=1, method="uniform")    
