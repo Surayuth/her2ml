@@ -33,7 +33,7 @@ def extract_feat(path, level):
     # glcm
     glcm = graycomatrix(
         q_gray, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], 
-        levels=level, symmetric=True, normed=False
+        levels=level, symmetric=True, normed=True
     ).astype(float)
 
     contrast = graycoprops(glcm, "contrast").reshape(-1).mean()
