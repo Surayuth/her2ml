@@ -40,9 +40,9 @@ def extract_feat(path, level):
     color_feat = (q_gray * (q_gray > 0)).mean()
     # stain ratio
     tot = (q_gray > 0).sum()
-    strong_ratio = (q_gray == 3).sum() / tot
-    med_ratio = (q_gray == 2).sum() / tot
-    weak_ratio = (q_gray == 1).sum() / tot
+    strong_ratio = (q_gray == 3).sum() / (tot + 1e-8)
+    med_ratio = (q_gray == 2).sum() / (tot + 1e-8)
+    weak_ratio = (q_gray == 1).sum() / (tot + 1e-8)
     stain_feat = [strong_ratio, med_ratio, weak_ratio]
 
     # lbp
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     # default args
     parser.add_argument("--workers", default=8, type=int, help="default number of workers")
 
-    parser.add_argument("--level", default=8, type=int, help="quantized level")
+    parser.add_argument("--level", default=4, type=int, help="quantized level")
     parser.add_argument("--src", default="./Data_Chula", type=str, help="source to the dataset")
     parser.add_argument("--dst", default="./extracted_features", type=str, help="dst to store features")
 
