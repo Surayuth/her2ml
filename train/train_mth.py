@@ -2,6 +2,7 @@ import argparse
 import polars as pl
 import optuna
 import numpy as np
+from pathlib import Path
 from utils import filter_case
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score, roc_auc_score, confusion_matrix
 from functools import partial
@@ -75,6 +76,7 @@ def objective(trial, df, selected_features, cv, inner_case):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="path to the features")
+    parser.add_argument("--dst", type=str, default="./results", help="path to results")
     parser.add_argument("--min_img", type=int, default=10, help="min image/case")
     parser.add_argument("--max_img", type=int, default=30, help="max image/case")
     parser.add_argument("--repeat", type=int, default=10, help="repeat experiments")
@@ -93,6 +95,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     path = args.path
+    dst = args.dst
     min_img = args.min_img
     max_img = args.max_img
     features = args.features
@@ -116,6 +119,7 @@ if __name__ == "__main__":
             "energy", "corrs", "entropy"
         ]
 
+    selected_features = sorted(selected_features)
     df = filter_case(pl.read_csv(path), min_img, max_img) \
         .select("path", "case", "ihc_score", "label", *selected_features)
     case_df = df.group_by("case").agg(pl.col("label").min())
@@ -208,6 +212,10 @@ if __name__ == "__main__":
             "case_acc", "case_f1", "case_precision", "case_recall", "case_auc", "case_tn", "case_fp", "case_fn", "case_tp",
         ]
     )
-    print(result_df)
+
+    dst_file = Path(dst) / f"{Path(path).stem}_{"_".join(selected_features)}.csv"
+    if not dst_file.parent.is_dir():
+        dst_file.parent.mkdir(parents=True)
+    result_df.write_csv(dst_file)
 
         
