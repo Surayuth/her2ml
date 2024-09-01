@@ -8,12 +8,13 @@ from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_sc
 from functools import partial
 from sklearn.model_selection import StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+#optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 def objective(trial, df, selected_features, cv, inner_case):
     params = {
         "n_estimators": trial.suggest_int("n_estimators", 10, 100, log=True),
         "max_depth": trial.suggest_int("max_depth", 3, 10),
-        "learning_rate": trial.suggest_float(1E-3, 0.1, log=True)
+        "learning_rate": trial.suggest_float("learning_rate", 1E-3, 0.1, log=True)
     }
     th = trial.suggest_float("th", 0.0, 1.0)
 
@@ -26,7 +27,7 @@ def objective(trial, df, selected_features, cv, inner_case):
         val_case = inner_case[val_idx].select("case")
         train_df = df.filter(pl.col("case").is_in(train_case)).select(*selected_features, "label")
         val_df = df.filter(pl.col("case").is_in(val_case)).select(*selected_features, "label")
-
+        
         X_train = train_df.drop("label").to_numpy()
         y_train = train_df.select("label").to_numpy().reshape(-1)
 
@@ -40,38 +41,6 @@ def objective(trial, df, selected_features, cv, inner_case):
         val_f1 = f1_score(y_val, val_pred)
         val_f1s.append(val_f1)
     return np.mean(val_f1s)
-
-
-def objective(trial, df, selected_features, cv, inner_case):
-    params = {
-        "n_estimators": trial.suggest_int("n_estimators", 10, 100, log=True),
-    }
-    th = trial.suggest_float("th", 0.0, 1.0)
-
-    inner_skf = StratifiedKFold(n_splits=cv-1, random_state=r, shuffle=True)
-    inner_splits = inner_skf.split(inner_case.select("case"), inner_case.select("label"))
-
-    val_f1s = []
-    for j, (train_idx, val_idx) in enumerate(inner_splits):
-        train_case = inner_case[train_idx].select("case") 
-        val_case = inner_case[val_idx].select("case")
-        train_df = df.filter(pl.col("case").is_in(train_case)).select(*selected_features, "label")
-        val_df = df.filter(pl.col("case").is_in(val_case)).select(*selected_features, "label")
-
-        X_train = train_df.drop("label").to_numpy()
-        y_train = train_df.select("label").to_numpy().reshape(-1)
-
-        X_val = val_df.drop("label").to_numpy()
-        y_val = val_df.select("label").to_numpy().reshape(-1)
-
-        model = GradientBoostingClassifier(**params, random_state=0)
-        model.fit(X_train, y_train)
-
-        val_pred = (model.predict_proba(X_val)[:, 1] > th) * 1
-        val_f1 = f1_score(y_val, val_pred)
-        val_f1s.append(val_f1)
-    return np.mean(val_f1s)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -103,6 +72,11 @@ if __name__ == "__main__":
     trials = args.trials
     cv = args.cv
     n_jobs = args.n_jobs
+
+    dst_root = Path(dst) / Path(path).stem
+    if not dst_root.is_dir():
+        dst_root.mkdir(parents=True)
+
 
     selected_features = []
     for f in features:
@@ -139,7 +113,7 @@ if __name__ == "__main__":
             f_objective = partial(
                 objective, df=df, 
                 selected_features=selected_features, 
-                cv=cv, inner_case=inner_case
+                cv=cv, inner_case=inner_case,
                 )
             
             study = optuna.create_study(direction="maximize")
@@ -169,53 +143,53 @@ if __name__ == "__main__":
                     pl.Series(test_prob).alias("prob"),
                     pl.Series(test_pred).alias("pred")
                 )
-
-            agg_test_df = test_df \
-                .group_by("case") \
-                .agg(
-                    pl.col("prob").mean(),
-                    pl.col("label").min(),
-                ) \
-                .with_columns(
-                    pl.when((pl.col("prob") > 0.5)).then(1)
-                    .otherwise(0)
-                    .alias("pred")
-                )
-
-            case_y_test = agg_test_df.select("label").to_numpy().reshape(-1)
-            case_test_pred = agg_test_df.select("pred").to_numpy().reshape(-1)
-
-            # case
-            case_acc = accuracy_score(case_y_test, case_test_pred)
-            case_f1 = f1_score(case_y_test, case_test_pred)
-            case_precision = precision_score(case_y_test, case_test_pred)
-            case_recall = recall_score(case_y_test, case_test_pred)
-            case_auc = roc_auc_score(case_y_test, case_test_pred)
-            case_cm = confusion_matrix(case_y_test, case_test_pred)
-            case_tn, case_fp, case_fn, case_tp = case_cm.ravel()
-
-
-            patch_result = [acc, f1, precision, recall, auc, tn, fp, fn, tp]
-            case_result = [
-                case_acc, case_f1, case_precision, case_recall, 
-                case_auc, case_tn, case_fp, case_fn, case_tp]
-            
-            rows.append(
-                [r, i] + [th] + patch_result + case_result
+            test_df.write_csv(
+                dst_root / f"{r}_{i}_{"_".join(features)}.csv"
             )
 
-    result_df = pl.DataFrame(
-        np.array(rows), 
-        schema=[
-            "repeat", "cv", "th",
-            "acc", "f1", "precision", "recall", "auc", "tn", "fp", "fn", "tp",
-            "case_acc", "case_f1", "case_precision", "case_recall", "case_auc", "case_tn", "case_fp", "case_fn", "case_tp",
-        ]
-    )
+            # agg_test_df = test_df \
+            #     .group_by("case") \
+            #     .agg(
+            #         pl.col("prob").mean(),
+            #         pl.col("label").min(),
+            #     ) \
+            #     .with_columns(
+            #         pl.when((pl.col("prob") > 0.5)).then(1)
+            #         .otherwise(0)
+            #         .alias("pred")
+            #     )
 
-    dst_file = Path(dst) / f"{Path(path).stem}_{"_".join(features)}.csv"
-    if not dst_file.parent.is_dir():
-        dst_file.parent.mkdir(parents=True)
-    result_df.write_csv(dst_file)
+            # case_y_test = agg_test_df.select("label").to_numpy().reshape(-1)
+            # case_test_pred = agg_test_df.select("pred").to_numpy().reshape(-1)
+
+            # # case
+            # case_acc = accuracy_score(case_y_test, case_test_pred)
+            # case_f1 = f1_score(case_y_test, case_test_pred)
+            # case_precision = precision_score(case_y_test, case_test_pred)
+            # case_recall = recall_score(case_y_test, case_test_pred)
+            # case_auc = roc_auc_score(case_y_test, case_test_pred)
+            # case_cm = confusion_matrix(case_y_test, case_test_pred)
+            # case_tn, case_fp, case_fn, case_tp = case_cm.ravel()
+
+
+            # patch_result = [acc, f1, precision, recall, auc, tn, fp, fn, tp]
+            # case_result = [
+            #     case_acc, case_f1, case_precision, case_recall, 
+            #     case_auc, case_tn, case_fp, case_fn, case_tp]
+            
+            # rows.append(
+            #     [r, i] + [th] + patch_result + case_result
+            # )
+
+    # result_df = pl.DataFrame(
+    #     np.array(rows), 
+    #     schema=[
+    #         "repeat", "cv", "th",
+    #         "acc", "f1", "precision", "recall", "auc", "tn", "fp", "fn", "tp",
+    #         "case_acc", "case_f1", "case_precision", "case_recall", "case_auc", "case_tn", "case_fp", "case_fn", "case_tp",
+    #     ]
+    # )
+
+    # result_df.write_csv(dst_root)
 
         
