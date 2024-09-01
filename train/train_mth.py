@@ -119,7 +119,7 @@ if __name__ == "__main__":
             "energy", "corrs", "entropy"
         ]
 
-    selected_features = sorted(selected_features)
+    features = sorted(features)
     df = filter_case(pl.read_csv(path), min_img, max_img) \
         .select("path", "case", "ihc_score", "label", *selected_features)
     case_df = df.group_by("case").agg(pl.col("label").min())
@@ -213,7 +213,7 @@ if __name__ == "__main__":
         ]
     )
 
-    dst_file = Path(dst) / f"{Path(path).stem}_{"_".join(selected_features)}.csv"
+    dst_file = Path(dst) / f"{Path(path).stem}_{"_".join(features)}.csv"
     if not dst_file.parent.is_dir():
         dst_file.parent.mkdir(parents=True)
     result_df.write_csv(dst_file)
