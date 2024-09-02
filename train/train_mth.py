@@ -67,7 +67,7 @@ if __name__ == "__main__":
     dst = args.dst
     min_img = args.min_img
     max_img = args.max_img
-    features = args.features
+    features = sorted(args.features)
     repeat = args.repeat
     trials = args.trials
     cv = args.cv
@@ -76,6 +76,9 @@ if __name__ == "__main__":
     dst_root = Path(dst) / Path(path).stem
     if not dst_root.is_dir():
         dst_root.mkdir(parents=True)
+
+    if not (dst_root / "_".join(features)).is_dir():
+        (dst_root / "_".join(features)).mkdir(parents=True)
 
 
     selected_features = []
@@ -93,7 +96,6 @@ if __name__ == "__main__":
             "energy", "corrs", "entropy"
         ]
 
-    features = sorted(features)
     df = filter_case(pl.read_csv(path), min_img, max_img) \
         .select("path", "case", "ihc_score", "label", *selected_features)
     case_df = df.group_by("case").agg(pl.col("label").min())
@@ -143,8 +145,10 @@ if __name__ == "__main__":
                     pl.Series(test_prob).alias("prob"),
                     pl.Series(test_pred).alias("pred")
                 )
+            dst_file = dst_root / "_".join(features) / f"{r}_{i}_{"_".join(features)}.csv"
+            print(dst_file)
             test_df.write_csv(
-                dst_root / f"{r}_{i}_{"_".join(features)}.csv"
+                dst_file
             )
 
             # agg_test_df = test_df \
