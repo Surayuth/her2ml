@@ -48,9 +48,10 @@ if __name__ == "__main__":
     parser.add_argument("--dst", type=str, default="./results", help="path to results")
     parser.add_argument("--min_img", type=int, default=10, help="min image/case")
     parser.add_argument("--max_img", type=int, default=30, help="max image/case")
-    parser.add_argument("--repeat", type=int, default=10, help="repeat experiments")
     parser.add_argument("--trials", type=int, default=10, help="no. of trials")
     parser.add_argument("--n_jobs", type=int, default=4, help="no. of trials")
+    parser.add_argument("--r_min", type=int, default=0, help="repeat min")
+    parser.add_argument("--r_max", type=int, default=19, help="repeat max")
 
     parser.add_argument("--cv", type=int, default=4, help="cross validation")
 
@@ -68,10 +69,11 @@ if __name__ == "__main__":
     min_img = args.min_img
     max_img = args.max_img
     features = sorted(args.features)
-    repeat = args.repeat
     trials = args.trials
     cv = args.cv
     n_jobs = args.n_jobs
+    r_min = args.r_min
+    r_max = args.r_max
 
     dst_root = Path(dst) / Path(path).stem
     if not dst_root.is_dir():
@@ -101,7 +103,7 @@ if __name__ == "__main__":
     case_df = df.group_by("case").agg(pl.col("label").min())
 
     rows = []
-    for r in range(repeat):
+    for r in range(r_min, r_max+1, 1):
         skf = StratifiedKFold(n_splits=cv, random_state=r, shuffle=True)
         splits = skf.split(case_df.select("case"), case_df.select("label"))
         for i, (inner_idx, outer_idx) in enumerate(splits):
