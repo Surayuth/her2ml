@@ -124,8 +124,8 @@ if __name__ == "__main__":
             th = best_params["th"]
             del best_params["th"]
 
-            X_train = df.filter(pl.col("case").is_in(inner_case)).select(selected_features).to_numpy()
-            y_train = df.select("label").to_numpy().reshape(-1)
+            X_train = df.filter(pl.col("case").is_in(inner_case.drop("label"))).select(selected_features).to_numpy()
+            y_train = df.filter(pl.col("case").is_in(inner_case.drop("label"))).select("label").to_numpy().reshape(-1)
 
             model = GradientBoostingClassifier(**best_params, random_state=0)
             model.fit(X_train, y_train)
