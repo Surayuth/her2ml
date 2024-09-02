@@ -124,8 +124,11 @@ if __name__ == "__main__":
             th = best_params["th"]
             del best_params["th"]
 
+            X_train = df.filter(pl.col("case").is_in(inner_case)).select(selected_features).to_numpy()
+            y_train = df.select("label").to_numpy().reshape(-1)
+
             model = GradientBoostingClassifier(**best_params, random_state=0)
-            model.fit(X_test, y_test)
+            model.fit(X_train, y_train)
 
             test_prob = model.predict_proba(X_test)[:, 1]
             test_pred = (test_prob > th) * 1
