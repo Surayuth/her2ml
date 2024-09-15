@@ -24,6 +24,31 @@ def read_image(path, scale=1 / 4):
         raise
     return cv2.resize(rgb, (new_W, new_H))
 
+def filter_case(df, min_count=10, max_count=30):
+    selected_df = (
+            df \
+            .with_columns(
+                pl.len().over("case")
+                .alias("count")
+            ) 
+            .filter(
+                pl.col("count") >= min_count
+            ) 
+            .with_columns(
+                pl.min_horizontal(max_count, pl.col("count"))
+                .alias("cap_max")
+            ) 
+            .with_columns(
+                pl.arange(1, pl.len() + 1).over("case")
+                .alias("case_idx")
+            ) 
+            .filter(
+                pl.col("case_idx") <= pl.col("cap_max")
+            ) 
+        )
+    return selected_df
+
+
 
 def prep_case(df):
     df = df.with_columns(
@@ -171,7 +196,6 @@ class NumpyMacenkoNormalizer(HENormalizer):
         I = I.reshape((-1,3))
 
         OD, ODhat = self.__convert_rgb2od(I, Io=Io, beta=beta)
-
         # compute eigenvectors
         _, eigvecs = np.linalg.eigh(np.cov(ODhat.T))
 
@@ -234,7 +258,7 @@ class NumpyMacenkoNormalizer(HENormalizer):
             E = np.multiply(Io, np.exp(np.expand_dims(-self.HERef[:,1], axis=1).dot(np.expand_dims(C2[1,:], axis=0))))
             E[E > 255] = 255
             E = np.reshape(E.T, (h, w, c)).astype(np.uint8)
-        return Inorm, H, E
+        return Inorm, H, E, C2
     
 
 class SWARM:
@@ -381,3 +405,7 @@ class SWARM:
     
     def get_hist(self):
         return self.hist_x, self.hist_fitness
+
+def white_balance(img):
+    img = ((img / np.percentile(img, axis=(0, 1), q=99)).clip(0, 1) * 255).astype(np.uint8)
+    return img
