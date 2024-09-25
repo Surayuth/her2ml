@@ -267,6 +267,8 @@ if __name__ == "__main__":
                         .alias("final_pred")
                     ) 
                 
+                # calculate the overall performance metrics and log it into mlflows
+                
                 dst_exp = dst_root / f"{r}_{i}" 
                 if not dst_exp.is_dir():
                     dst_exp.mkdir(parents=True)
