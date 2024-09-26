@@ -64,9 +64,9 @@ def objective(trial, df, base_model, inner_case, random_state, n_estimators):
     inner_skf = StratifiedKFold(n_splits=3, random_state=random_state, shuffle=True)
     inner_splits = inner_skf.split(inner_case.select("case"), inner_case.select("ihc_score"))
     val_aucs = []
-    for j, (train_idx, val_idx) in enumerate(inner_splits):
-        inner_train_case = inner_case[train_idx].select("case", "label", "ihc_score")
-        inner_val_case = inner_case[val_idx].select("case", "label", "ihc_score")
+    for j, (inner_train_idx, inner_val_idx) in enumerate(inner_splits):
+        inner_train_case = inner_case[inner_train_idx].select("case", "label", "ihc_score")
+        inner_val_case = inner_case[inner_val_idx].select("case", "label", "ihc_score")
 
         inner_train_df = df \
             .filter(
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry_run", action="store_true", help="train model without hyperparameter tuning")
     parser.add_argument(
         '--alphas', nargs='+',
-        type=float, default=[0.01, 0.05, 0.1],
+        type=float, default=[0.01, 0.05, 0.1, 0.15, 0.2],
         help="A list of float numbers"
     )
 
@@ -200,10 +200,10 @@ if __name__ == "__main__":
             train_df = df \
                 .filter(
                     pl.col("case") 
-                    .is_in(train_case.select("case"))
+                    .is_in(inner_case.select("case"))
                 ) \
                 .drop("count", "cap_max", "case_idx")
-
+            
             X_train = train_df.drop("case", "path", "ihc_score", "label").to_numpy()
             y_train = train_df.select("label").to_numpy().reshape(-1)
 
