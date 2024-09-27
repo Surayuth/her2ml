@@ -25,6 +25,9 @@ def agg_patch_average_ambi_her2(df):
     return ambis
 
 def agg_patch_tpr_fpr(df):
+    """
+    for 2+ only
+    """
     sub_df = df.filter(pl.col("ihc_score").is_in([2, 3]))
     tp = len(sub_df.filter((pl.col("final_pred") == 1) & (pl.col("label") == 1)))
     tn = len(sub_df.filter((pl.col("final_pred") == 0) & (pl.col("label") == 0)))
@@ -33,9 +36,22 @@ def agg_patch_tpr_fpr(df):
 
     tot = tp + tn + fp + fn
     ambi = len(sub_df.filter(pl.col("pred_size") == 2)) / len(sub_df)
-    specificity = tp / (tp + fn + 1e-8) # recall
-    sensitivity = tn / (tn + fp + 1e-8) # tnr
-    return [specificity, sensitivity, ambi]
+    sensitivity = tp / (tp + fn + 1e-8) # tnr
+    specificity = tn / (tn + fp + 1e-8) # tpr
+    return [sensitivity, specificity, ambi]
+
+def agg_patch_tpr_fpr_ovr(df):
+    tp = len(df.filter((pl.col("final_pred") == 1) & (pl.col("label") == 1)))
+    tn = len(df.filter((pl.col("final_pred") == 0) & (pl.col("label") == 0)))
+    fp = len(df.filter((pl.col("final_pred") == 1) & (pl.col("label") == 0)))
+    fn = len(df.filter((pl.col("final_pred") == 0) & (pl.col("label") == 1)))
+
+    tot = tp + tn + fp + fn
+    ambi = len(df.filter(pl.col("pred_size") == 2)) / len(df)
+    sensitivity = tp / (tp + fn + 1e-8) # tnr
+    specificity = tn / (tn + fp + 1e-8) # tpr
+    return [sensitivity, specificity, ambi]
+
 
 def agg_patch_coverage_her2(df):
     cover = (
