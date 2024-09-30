@@ -109,11 +109,9 @@ if __name__ == "__main__":
     parser.add_argument("--n_estimators", type=int, default=200, help="no. of estimators")
     parser.add_argument("--model", type=str, required=True, help="model name")
     parser.add_argument("--dry_run", action="store_true", help="train model without hyperparameter tuning")
-    parser.add_argument(
-        '--alphas', nargs='+',
-        type=float, default=[0.01, 0.05, 0.1, 0.15, 0.2],
-        help="A list of float numbers"
-    )
+    parser.add_argument("--alpha_min", type=float, default=0.0, help="min alpha")
+    parser.add_argument("--alpha_max", type=float, default=0.2, help="max alpha")
+    parser.add_argument("--step_alpha", type=float, default=0.025, help="step alpha")
 
     args = parser.parse_args()
     path = args.path
@@ -126,14 +124,20 @@ if __name__ == "__main__":
     r_max = args.r_max
     model_name = args.model
     n_estimators = args.n_estimators
-    alphas = args.alphas
     dry_run = args.dry_run
+    alpha_min = args.alpha_min
+    alpha_max = args.alpha_max
+    step_alpha = args.step_alpha
+    alphas = np.arange(alpha_min, alpha_max + step_alpha, step_alpha)
 
     dst_root = Path(dst) / (
             Path(path).stem + 
             f"_trial_{trials}" + 
             f"_n_est_{n_estimators if not dry_run else 100}" + 
             f"_model_{model_name}" +
+            f"_alpha_min_{alpha_min}" + 
+            f"_alpha_max_{alpha_max}" + 
+            f"_step_alpha_{step_alpha}" + 
             f"_dryrun_ {dry_run}"
         ) 
     if not dst_root.is_dir():
