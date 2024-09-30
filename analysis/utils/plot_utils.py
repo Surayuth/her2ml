@@ -94,6 +94,40 @@ def agg_patch_coverage_ihc(df):
     )
     return cover
 
+def agg_patch_final_pred(df):
+    """
+    2+ only
+    """
+    fpred = (
+        df \
+            .filter(
+                pl.col("ihc_score").is_in([2, 3])
+            ) \
+            .group_by("final_pred") \
+            .agg(
+                pl.len().alias("count")
+            ) \
+            .sort("final_pred") 
+    )
+    ambi = fpred.filter(pl.col("final_pred") == -1)
+    neg = fpred.filter(pl.col("final_pred") == 0)
+    pos = fpred.filter(pl.col("final_pred") == 1)
+
+    if len(ambi) > 0:
+        v_ambi = ambi.select("count").item()
+    else:
+        v_ambi = 0
+    if len(neg) > 0:
+        v_neg = neg.select("count").item()
+    else:
+        v_neg = 0
+    if len(pos) > 0:
+        v_pos = pos.select("count").item()
+    else:
+        v_pos = 0
+
+    return [v_ambi, v_neg, v_pos]
+
 
 def agg_heights(root, cv, r_min, r_max, alphas, agg_func, col_names):
     rows = []
