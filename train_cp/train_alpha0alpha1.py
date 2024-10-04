@@ -138,7 +138,8 @@ if __name__ == "__main__":
             f"_alpha_min_{alpha_min}" + 
             f"_alpha_max_{alpha_max}" + 
             f"_step_alpha_{step_alpha}" + 
-            f"_dryrun_ {dry_run}"
+            f"_dryrun_ {dry_run}" + 
+            "alpha0alpha1"
         ) 
     if not dst_root.is_dir():
         dst_root.mkdir(parents=True)
@@ -224,58 +225,62 @@ if __name__ == "__main__":
             model.fit(X_train, y_train)
 
             # calib (conformal prediction)
-            for alpha in alphas:
-                prob_calib = model.predict_proba(X_calib)
-                
-                scores0 = 1 - prob_calib[:,0][y_calib == 0]
-                scores1 = 1 - prob_calib[:,1][y_calib == 1]
-                n_calib = len(prob_calib)
-                q_level = np.ceil((n_calib+1) * (1 - alpha)) / n_calib
-                qhat0 = np.quantile(scores0, q_level, method='higher')
-                qhat1 = np.quantile(scores1, q_level, method='higher')
-                # test
-                prob_test = model.predict_proba(X_test)
-                prob0 = prob_test[:, 0]
-                prob1 = prob_test[:, 1]
-                preds0 = (prob0 >= 1 - qhat0) * 1
-                preds1 = (prob1 >= 1 - qhat1) * 1
-                
-                pred_df = pl.DataFrame({
-                        "path": test_df.select("path"),
-                        "case": test_df.select("case"),
-                        "random_state": r,
-                        "alpha": alpha,
-                        "fold": i,
-                        "q_level": q_level,
-                        "qhat0": qhat0,
-                        "qhat1": qhat1,
-                        "prob0": prob0,
-                        "prob1": prob1,
-                        "pred0": preds0,
-                        "pred1": preds1,
-                        "label": y_test,
-                        "ihc_score": test_df.select("ihc_score"),
-                    }) \
-                    .with_columns(
-                        (pl.col("pred0") + pl.col("pred1"))
-                        .alias("pred_size")
-                    ) \
-                    .with_columns(
-                        pl.when(
-                            (pl.col("pred0") == 1) & (pl.col("pred1") == 0)
-                        ).then(pl.lit(0))
-                        .when(
-                            (pl.col("pred0") == 0) & (pl.col("pred1") == 1)
-                        ).then(pl.lit(1))
-                        .otherwise(pl.lit(-1))
-                        .alias("final_pred")
-                    ) 
-                
-                # calculate the overall performance metrics and log it into mlflows
-                
-                dst_exp = dst_root / f"{r}_{i}" 
-                if not dst_exp.is_dir():
-                    dst_exp.mkdir(parents=True)
-                dst_file = dst_exp / f"{r}_{i}_{alpha}_result.csv"
-                pred_df.write_csv(dst_file)
+            for alpha0 in alphas:
+                for alpha1 in alphas:
+                    prob_calib = model.predict_proba(X_calib)
+                    
+                    scores0 = 1 - prob_calib[:,0][y_calib == 0]
+                    scores1 = 1 - prob_calib[:,1][y_calib == 1]
+                    n_calib = len(prob_calib)
+                    q_level0 = np.ceil((n_calib+1) * (1 - alpha0)) / n_calib
+                    q_level1 = np.ceil((n_calib+1) * (1 - alpha1)) / n_calib
+                    qhat0 = np.quantile(scores0, q_level0, method='higher')
+                    qhat1 = np.quantile(scores1, q_level1, method='higher')
+                    # test
+                    prob_test = model.predict_proba(X_test)
+                    prob0 = prob_test[:, 0]
+                    prob1 = prob_test[:, 1]
+                    preds0 = (prob0 >= 1 - qhat0) * 1
+                    preds1 = (prob1 >= 1 - qhat1) * 1
+                    
+                    pred_df = pl.DataFrame({
+                            "path": test_df.select("path"),
+                            "case": test_df.select("case"),
+                            "random_state": r,
+                            "alpha0": alpha0,
+                            "alpha1": alpha1,
+                            "fold": i,
+                            "q_level0": q_level0,
+                            "q_level1": q_level1,
+                            "qhat0": qhat0,
+                            "qhat1": qhat1,
+                            "prob0": prob0,
+                            "prob1": prob1,
+                            "pred0": preds0,
+                            "pred1": preds1,
+                            "label": y_test,
+                            "ihc_score": test_df.select("ihc_score"),
+                        }) \
+                        .with_columns(
+                            (pl.col("pred0") + pl.col("pred1"))
+                            .alias("pred_size")
+                        ) \
+                        .with_columns(
+                            pl.when(
+                                (pl.col("pred0") == 1) & (pl.col("pred1") == 0)
+                            ).then(pl.lit(0))
+                            .when(
+                                (pl.col("pred0") == 0) & (pl.col("pred1") == 1)
+                            ).then(pl.lit(1))
+                            .otherwise(pl.lit(-1))
+                            .alias("final_pred")
+                        ) 
+                    
+                    # calculate the overall performance metrics and log it into mlflows
+                    
+                    dst_exp = dst_root / f"{r}_{i}" 
+                    if not dst_exp.is_dir():
+                        dst_exp.mkdir(parents=True)
+                    dst_file = dst_exp / f"{r}_{i}_alpha0_{alpha0}_alpha1_{alpha1}_result.csv"
+                    pred_df.write_csv(dst_file)
 
