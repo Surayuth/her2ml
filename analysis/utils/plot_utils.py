@@ -186,3 +186,71 @@ def agg_heights(root, cv, r_min, r_max, alphas, agg_func, col_names):
             heights[col]["err_max"].append(high_ci - mean_ci)
     return heights
 
+def agg_heights_v2(root, cv, r_min, r_max, alphas, agg_func, col_names):
+    """
+    in case alpha1 = alpha2
+    """
+    rows = []
+    for r in range(r_min, r_max + 1):
+        for f in range(cv):
+            for alpha in alphas:
+                alpha = round(alpha, 2)
+                file_path = root / f"{r}_{f}" / f"{r}_{f}_alpha0_{alpha}_alpha1_{alpha}_result.csv"
+
+                df = pl.read_csv(file_path)
+                values = agg_func(df)
+
+                row = [r, alpha] + values
+                rows.append(row)
+    
+    schema = ["r", "alpha"] + col_names
+
+    result_df = pl.DataFrame(
+        rows, schema=schema,
+        orient="row"
+    )
+
+    agg_result = result_df \
+        .group_by("r", "alpha") \
+        .agg(
+            [
+                pl.col(col).mean()
+                for col in col_names
+            ]
+        ) \
+        .sort("r", "alpha")
+
+    heights = {
+        col: {
+            "mean": [],
+            "err_min": [],
+            "err_max": []
+        } 
+        for col in col_names
+    }
+
+    for alpha in alphas:
+        alpha = round(alpha, 2)
+        arr_stats = agg_result \
+            .filter(pl.col("alpha") == alpha) \
+            .select(col_names) \
+            .to_numpy()
+
+        for i, col in enumerate(col_names):
+            bi = bootstrap((arr_stats)[:,i].reshape(1,-1), statistic=np.mean)
+            ci = bi.confidence_interval
+
+            min_ci = ci.low * 100
+            high_ci = ci.high * 100
+            mean_ci = bi.bootstrap_distribution.mean() * 100
+
+            # handling degenerate cases
+            if np.isnan(min_ci) | np.isnan(high_ci):
+                min_ci = mean_ci
+                high_ci = mean_ci
+
+            heights[col]["mean"].append(high_ci)
+            heights[col]["err_min"].append(mean_ci - min_ci)
+            heights[col]["err_max"].append(high_ci - mean_ci)
+    return heights
+
